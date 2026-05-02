@@ -1,0 +1,44 @@
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Java
+target/
+build/
+*.class
+*.jar
+
+# Node / React
+node_modules/
+dist/
+build/
+npm-debug.log*
+yarn-error.log*
+reactjs/node_modules/
+
+# C++ / CMake
+cmake-build-*/
+*.o
+*.obj
+*.exe
+
+# Env & secrets
+.env
+secrets/
+
+# Logs
+*.log
+
+# Data / temp
+data/
+tmp/
+.cache/
+
+# Project-specific (optional if really needed)
+fleetops-android/
+fleetops-frontend/
+test-data/
+mingw-w64.7z

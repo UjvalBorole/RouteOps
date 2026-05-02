@@ -1,0 +1,7 @@
+RouteOps API Test Results - Sat Apr 25 06:00:41 UTC 2026
+==========================================
+
+[0;34m[2026-04-25 06:00:41] Setting up comprehensive test data directory...[0m
+[0;34m[2026-04-25 06:00:41] Checking service availability...[0m
+[0;34m[2026-04-25 06:00:42] [0;31mERROR: Gateway service not running on http://localhost:8080[0m[0m
+[0;34m[2026-04-25 06:00:42] Please start the services first: docker-compose up[0m

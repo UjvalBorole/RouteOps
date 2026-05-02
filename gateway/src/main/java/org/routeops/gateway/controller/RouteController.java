@@ -1,0 +1,85 @@
+package org.routeops.gateway.controller;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.routeops.gateway.dto.route.*;
+import org.routeops.gateway.service.RouteService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/routes")
+@RequiredArgsConstructor
+public class RouteController {
+
+    private final RouteService routeService;
+
+    @PostMapping("/plan")
+    public ResponseEntity<RoutePlanResponse> planRoute(@RequestBody @Valid RoutePlanRequest request) {
+        String username = getCurrentUsername();
+        RoutePlanResponse response = routeService.planRoute(username, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/{sessionId}/start")
+    public ResponseEntity<RouteSessionResponse> startRoute(@PathVariable String sessionId) {
+        String username = getCurrentUsername();
+        RouteSessionResponse response = routeService.startRoute(username, sessionId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{sessionId}/pause")
+    public ResponseEntity<RouteSessionResponse> pauseRoute(@PathVariable String sessionId) {
+        String username = getCurrentUsername();
+        RouteSessionResponse response = routeService.pauseRoute(username, sessionId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{sessionId}/resume")
+    public ResponseEntity<RouteSessionResponse> resumeRoute(@PathVariable String sessionId) {
+        String username = getCurrentUsername();
+        RouteSessionResponse response = routeService.resumeRoute(username, sessionId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{sessionId}/cancel")
+    public ResponseEntity<RouteSessionResponse> cancelRoute(@PathVariable String sessionId) {
+        String username = getCurrentUsername();
+        RouteSessionResponse response = routeService.cancelRoute(username, sessionId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/location")
+    public ResponseEntity<RouteProgressResponse> updateLocation(@RequestBody @Valid RouteLocationUpdateRequest request) {
+        String username = getCurrentUsername();
+        RouteProgressResponse response = routeService.updateLocation(username, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<RouteSessionResponse>> getUserRoutes() {
+        String username = getCurrentUsername();
+        List<RouteSessionResponse> response = routeService.getUserRouteSessions(username);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{sessionId}")
+    public ResponseEntity<RouteSessionResponse> getRouteSession(@PathVariable String sessionId) {
+        String username = getCurrentUsername();
+        RouteSessionResponse response = routeService.getRouteSession(username, sessionId);
+        return ResponseEntity.ok(response);
+    }
+
+    private String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null) {
+            throw new IllegalStateException("Unable to resolve authenticated user");
+        }
+        return authentication.getName();
+    }
+}

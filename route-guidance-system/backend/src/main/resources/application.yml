@@ -1,0 +1,20 @@
+server:
+  port: 8092
+
+spring:
+  application:
+    name: route-guidance-backend
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+guidance:
+  routing:
+    base-url: http://localhost:18080
+    route-path: /route
+  defaults:
+    speed-kmh: 35.0
+    route-corridor-meters: 75.0

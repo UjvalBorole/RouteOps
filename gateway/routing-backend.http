@@ -1,0 +1,112 @@
+@gateway = http://localhost:8081
+@engine = http://localhost:18080
+@username = routeuser
+@email = routeuser@example.com
+@password = secret123
+
+###
+# Register test user
+# Expected:
+# - 201 Created on first run
+# - 409 Conflict if user already exists
+POST {{gateway}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+###
+# Login and copy accessToken from response body
+# Expected:
+# - 200 OK
+# - body contains accessToken and refreshToken
+POST {{gateway}}/api/auth/login
+Content-Type: application/json
+
+{
+  "usernameOrEmail": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+# After login, paste the token here
+@accessToken = paste-token-here
+
+###
+# Gateway route API
+# Expected:
+# - 200 OK
+# - status = success or fallback
+# - body contains count, totalDistance, path[]
+GET {{gateway}}/api/route?startLat=45.6579&startLng=25.6012&endLat=45.6486&endLng=25.6061&weight=1200
+Authorization: Bearer {{accessToken}}
+
+###
+# Gateway route API without token
+# Expected:
+# - 401 Unauthorized or 403 Forbidden
+GET {{gateway}}/api/route?startLat=45.6579&startLng=25.6012&endLat=45.6486&endLng=25.6061
+
+###
+# Direct C++ routing engine
+# Expected:
+# - 200 OK
+# - status = success
+# - body contains totalDistance, count, path[]
+GET {{engine}}/route?startLat=45.6579&startLng=25.6012&endLat=45.6486&endLng=25.6061&weight=1200
+
+###
+# Direct C++ routing engine missing params
+# Expected:
+# - 400 Bad Request
+# - { "status": "error", "message": "Missing coordinates parameters (startLat, startLng, endLat, endLng)." }
+GET {{engine}}/route?startLat=45.6579&startLng=25.6012
+
+###
+# Navigation plan API
+# Expected:
+# - 200 OK
+# - body contains distanceMeters, etaMinutes, withinDistance, withinEta, status, message
+POST {{gateway}}/api/navigation/plan
+Content-Type: application/json
+
+{
+  "user1Lat": 45.6579,
+  "user1Lng": 25.6012,
+  "user2Lat": 45.6486,
+  "user2Lng": 25.6061,
+  "thresholdDistanceMeters": 2000,
+  "thresholdEtaMinutes": 5,
+  "speedKmh": 40
+}
+
+###
+# Navigation plan without thresholds
+# Expected:
+# - 200 OK
+# - status says threshold logic is disabled
+POST {{gateway}}/api/navigation/plan
+Content-Type: application/json
+
+{
+  "user1Lat": 45.6579,
+  "user1Lng": 25.6012,
+  "user2Lat": 45.6486,
+  "user2Lng": 25.6061
+}
+
+###
+# Navigation validation error
+# Expected:
+# - 400 Bad Request
+POST {{gateway}}/api/navigation/plan
+Content-Type: application/json
+
+{
+  "user1Lng": 25.6012,
+  "user2Lat": 45.6486,
+  "user2Lng": 25.6061
+}

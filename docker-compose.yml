@@ -1,0 +1,74 @@
+services:
+  # 1. Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: routeops-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: routeops
+    secrets:
+      - db_password
+    ports:
+      - "5434:5432" # Accessible from Windows on port 5434
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - route-network
+
+  # 2. C++ Routing Engine
+  routing-engine:
+    build: ./routing-engine
+    container_name: routing-engine
+    ports:
+      - "18080:18080"
+    networks:
+      - route-network
+    restart: unless-stopped
+
+  # 3. Java Backend
+  gateway:
+    build: ./gateway
+    container_name: routeops-backend
+    ports:
+      - "8081:8080"
+    environment:
+      # Database settings
+      SPRING_DATASOURCE_URL: jdbc:postgresql://routeops-db:5432/routeops
+      SPRING_DATASOURCE_USERNAME: user
+
+      # --- FIX FOR CONNECTION REFUSED ---
+      # Tell it to look for the 'routing-engine' container on port 18080
+      ROUTEOPS_ROUTING_URL: http://routing-engine:18080
+    secrets:
+      - db_password
+      - jwt_secret
+    depends_on:
+      - postgres
+      - routing-engine
+    networks:
+      - route-network
+
+  # 4. Angular Frontend
+  frontend:
+    build: ./fleetops-frontend
+    container_name: routeops-frontend
+    ports:
+      - "4200:80" # Nginx listens on port 80 internally, we map it to 4200 externally
+    depends_on:
+      - gateway
+    networks:
+      - route-network
+
+volumes:
+  postgres_data:
+
+networks:
+  route-network:
+    driver: bridge
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt

@@ -1,0 +1,67 @@
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-bottom: 1.5rem;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.header-brand:hover {
+  transform: scale(1.05);
+}
+
+.brand-text {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.header-btn {
+  color: white !important;
+}
+
+.header-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sidebar-content {
+  padding: 1rem;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0.5rem 1rem;
+  }
+
+  .brand-text {
+    font-size: 1.25rem;
+  }
+
+  .header-actions {
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-brand {
+    margin-right: auto;
+  }
+
+  .header-actions .p-button {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
