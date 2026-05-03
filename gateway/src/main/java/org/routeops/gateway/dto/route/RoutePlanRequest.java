@@ -8,6 +8,10 @@ public record RoutePlanRequest(
         @NotNull Double endLat,
         @NotNull Double endLng,
         String sessionName,
-        Double destinationThresholdMeters
+        String startAddress,
+        String destinationAddress,
+        String vehicleType, // e.g., "pedestrian", "car", "bike"
+        Double destinationThresholdMeters,
+        Long destinationThresholdSeconds // Time-based threshold in seconds
 ) {
 }

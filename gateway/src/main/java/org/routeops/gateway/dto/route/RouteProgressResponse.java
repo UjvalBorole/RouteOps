@@ -8,6 +8,7 @@ public record RouteProgressResponse(
         Double currentLat,
         Double currentLng,
         Double remainingDistance,
+        Double remainingDistanceKm,
         Double completedDistance,
         Double progressPercentage,
         Integer currentNodeIndex,
@@ -15,6 +16,13 @@ public record RouteProgressResponse(
         Double deviationDistance,
         List<RouteAlertDto> activeAlerts,
         String nextInstruction,
-        Double distanceToNextInstruction
+        Double distanceToNextInstruction,
+        List<RouteNodeDto> remainingPathNodes,
+        Double currentSpeedKmh,
+        Double lastSegmentDistanceMeters,
+        Long lastSegmentDurationSeconds,
+        Long estimatedTimeToDestinationSeconds,
+        Long nextAlarmTriggerTimeSeconds,
+        Double nextAlarmThresholdMeters
 ) {
 }

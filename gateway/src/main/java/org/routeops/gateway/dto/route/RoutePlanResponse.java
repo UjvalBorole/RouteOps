@@ -9,9 +9,12 @@ public record RoutePlanResponse(
         Double startLng,
         Double endLat,
         Double endLng,
+        String startAddress,
+        String destinationAddress,
         Double totalDistance,
         Double estimatedDurationMinutes,
-        List<RouteNodeDto> routeNodes,
+        Long estimatedDurationSeconds,
+        List<RouteNodeDto> routePath,
         String status
 ) {
 }
