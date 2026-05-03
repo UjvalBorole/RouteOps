@@ -54,6 +54,13 @@ public class RouteController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{sessionId}/complete")
+    public ResponseEntity<RouteSessionResponse> completeRoute(@PathVariable String sessionId) {
+        String username = getCurrentUsername();
+        RouteSessionResponse response = routeService.completeRoute(username, sessionId);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/location")
     public ResponseEntity<RouteProgressResponse> updateLocation(@RequestBody @Valid RouteLocationUpdateRequest request) {
         String username = getCurrentUsername();
@@ -72,6 +79,13 @@ public class RouteController {
     public ResponseEntity<RouteSessionResponse> getRouteSession(@PathVariable String sessionId) {
         String username = getCurrentUsername();
         RouteSessionResponse response = routeService.getRouteSession(username, sessionId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/history/list")
+    public ResponseEntity<List<RouteSessionResponse>> getRouteHistory() {
+        String username = getCurrentUsername();
+        List<RouteSessionResponse> response = routeService.getRouteHistory(username);
         return ResponseEntity.ok(response);
     }
 

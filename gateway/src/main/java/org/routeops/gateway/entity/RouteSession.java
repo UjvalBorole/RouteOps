@@ -15,6 +15,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -53,6 +54,15 @@ public class RouteSession {
     @Column(nullable = false)
     private Double endLng;
 
+    @Column
+    private String startAddress;
+
+    @Column
+    private String destinationAddress;
+
+    @Column
+    private String vehicleType; // e.g., "pedestrian", "car", "bike"
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -80,6 +90,15 @@ public class RouteSession {
     @Column
     private Instant lastLocationUpdate;
 
+    @Column
+    private Double lastMovementLat;
+
+    @Column
+    private Double lastMovementLng;
+
+    @Column
+    private Instant lastMovementAt;
+
     // Route progress
     @Column
     private Double totalRouteDistance; // meters
@@ -93,9 +112,33 @@ public class RouteSession {
     @Column
     private Integer currentNodeIndex;
 
+    @Column
+    private Double currentSpeedKmh;
+
+    @Column
+    private Double lastSegmentDistanceMeters;
+
+    @Column
+    private Long lastSegmentDurationSeconds;
+
+    @Column
+    private Long estimatedTimeToDestinationSeconds;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private Boolean userPausedByCommand = false;
+
+    @Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    @Builder.Default
+    private Long version = 0L;
+
     // Alert settings
     @Column
     private Double destinationThresholdMeters;
+
+    @Column
+    private Long destinationThresholdSeconds; // Time-based threshold in seconds
 
     @Column
     private Boolean destinationAlertTriggered;
@@ -107,7 +150,8 @@ public class RouteSession {
         PLANNED,    // Route planned but not started
         ACTIVE,     // User is actively navigating
         PAUSED,     // Navigation paused
-        COMPLETED,  // Reached destination
+        COMPLETED,  // User confirmed completion
+        REACHED,    // Auto-detected arrival at destination
         CANCELLED   // Session cancelled
     }
 }

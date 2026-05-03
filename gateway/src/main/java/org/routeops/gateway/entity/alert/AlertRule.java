@@ -52,6 +52,9 @@ public class AlertRule {
     @Column
     private Double thresholdDistanceMeters; // Trigger when within this distance of destination
 
+    @Column
+    private Long thresholdSeconds; // Trigger when estimated time to destination is below this
+
     // For route deviation alerts
     @Column
     private Double maxDeviationMeters; // Maximum allowed deviation from route

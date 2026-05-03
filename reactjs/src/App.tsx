@@ -9,9 +9,9 @@ import './App.css';
 
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
-import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import Register from './components/Register';
+import RouteHistory from './components/RouteHistory';
 
 function App() {
   return (
@@ -20,9 +20,9 @@ function App() {
         <Header />
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/admin" element={<AdminPanel />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/history" element={<RouteHistory />} />
         </Routes>
         <ToastContainer />
       </div>
