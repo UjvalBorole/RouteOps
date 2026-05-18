@@ -225,7 +225,7 @@ The project includes strict validation mechanisms:
 
 ## 📝 Authors
 
-Project developed by **Ujval Borole** for the Learning of **Cloud Architecture and DevOps** .
+Project developed by **Aranyosi Rebeka-Imola and Constantin Raul-Nicolae** for the **Cloud Architecture and DevOps** course.
 
 Group: **10LF341**
 
