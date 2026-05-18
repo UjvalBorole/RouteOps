@@ -32,7 +32,11 @@ public class NavigationService {
                 request.user2Lat(),
                 request.user2Lng(),
                 "Legacy Navigation Plan",
-                request.thresholdDistanceMeters()
+                null, // startAddress
+                null, // destinationAddress
+                null, // vehicleType
+                request.thresholdDistanceMeters(),
+                null  // destinationThresholdSeconds
         );
 
         // This would require a username, which we don't have in the old API

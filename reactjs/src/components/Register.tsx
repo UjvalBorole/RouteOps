@@ -5,22 +5,21 @@ import { Password } from 'primereact/password';
 import { Button } from 'primereact/button';
 import { Divider } from 'primereact/divider';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'react-toastify';
+import apiClient from '../utils/apiClient';
 import './Auth.css';
 
 const Register: React.FC = () => {
   const [user, setUser] = useState({
+    username: '',
     email: '',
     password: '',
-    firstName: '',
-    lastName: ''
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleRegister = async () => {
-    if (!user.email.trim() || !user.password.trim() || !user.firstName.trim() || !user.lastName.trim()) {
+    if (!user.username.trim() || !user.email.trim() || !user.password.trim()) {
       toast.warn('Please fill in all fields');
       return;
     }
@@ -32,7 +31,7 @@ const Register: React.FC = () => {
 
     setLoading(true);
     try {
-      await axios.post('/api/auth/register', user);
+      await apiClient.post('/api/auth/register', user);
       toast.success('Registration successful! Please login.');
       navigate('/login');
     } catch (error) {
@@ -54,27 +53,16 @@ const Register: React.FC = () => {
           <Divider />
 
           <div className="auth-form">
-            <div className="form-row">
-              <div className="form-field">
-                <label htmlFor="firstName">First Name</label>
-                <InputText
-                  id="firstName"
-                  placeholder="First name"
-                  value={user.firstName}
-                  onChange={(e) => setUser({ ...user, firstName: e.target.value })}
-                  className="w-full"
-                />
-              </div>
-              <div className="form-field">
-                <label htmlFor="lastName">Last Name</label>
-                <InputText
-                  id="lastName"
-                  placeholder="Last name"
-                  value={user.lastName}
-                  onChange={(e) => setUser({ ...user, lastName: e.target.value })}
-                  className="w-full"
-                />
-              </div>
+            <div className="form-field">
+              <label htmlFor="username">Username</label>
+              <InputText
+                id="username"
+                type="text"
+                placeholder="Choose a username"
+                value={user.username}
+                onChange={(e) => setUser({ ...user, username: e.target.value })}
+                className="w-full"
+              />
             </div>
 
             <div className="form-field">

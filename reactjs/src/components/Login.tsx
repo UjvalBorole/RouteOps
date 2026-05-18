@@ -5,29 +5,30 @@ import { Password } from 'primereact/password';
 import { Button } from 'primereact/button';
 import { Divider } from 'primereact/divider';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'react-toastify';
+import apiClient from '../utils/apiClient';
+import tokenService from '../utils/tokenService';
 import './Auth.css';
 
 const Login: React.FC = () => {
-  const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [credentials, setCredentials] = useState({ usernameOrEmail: '', password: '' });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    if (!credentials.email.trim() || !credentials.password.trim()) {
+    if (!credentials.usernameOrEmail.trim() || !credentials.password.trim()) {
       toast.warn('Please fill in all fields');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await axios.post('/api/auth/login', credentials);
-      localStorage.setItem('token', response.data.token);
+      const response = await apiClient.post('/api/auth/login', credentials);
+      tokenService.setTokens(response.data.accessToken, response.data.refreshToken);
       toast.success('Login successful!');
       navigate('/');
     } catch (error) {
-      toast.error('Login failed. Please check your credentials.');
+      toast.error('Login failed. Please check username/email and password.');
     } finally {
       setLoading(false);
     }
@@ -46,13 +47,13 @@ const Login: React.FC = () => {
 
           <div className="auth-form">
             <div className="form-field">
-              <label htmlFor="email">Email Address</label>
+              <label htmlFor="usernameOrEmail">Username or Email</label>
               <InputText
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={credentials.email}
-                onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                id="usernameOrEmail"
+                type="text"
+                placeholder="Enter your username or email"
+                value={credentials.usernameOrEmail}
+                onChange={(e) => setCredentials({ ...credentials, usernameOrEmail: e.target.value })}
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
                 className="w-full"
               />

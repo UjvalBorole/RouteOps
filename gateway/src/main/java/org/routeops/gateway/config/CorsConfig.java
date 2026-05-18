@@ -8,11 +8,19 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
-    // Enable CORS for all routes and allow requests from the Angular frontend.
+    // Enable CORS for all routes and allow requests from the React frontend
     @Override
     public void addCorsMappings(@NonNull CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("http://localhost:4200")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS");
+                .allowedOrigins(
+                    "http://localhost:4200",      // Local development
+                    "http://frontend",             // Docker service name
+                    "http://routeops-frontend",    // Docker container name
+                    "http://localhost:3000"        // Alternative local dev port
+                )
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 }

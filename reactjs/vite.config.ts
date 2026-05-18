@@ -8,7 +8,7 @@ export default defineConfig({
     port: 4200, // Match Angular port
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8081',
         changeOrigin: true
       }
     }
