@@ -96,8 +96,14 @@ int main() {
         return crow::response(200, jsonResponse);
     });
 
+    CROW_ROUTE(app, "/health")
+    ([]() {
+        return "OK";
+    });
+
     std::println("Server is starting on port 18080...");
-    app.port(18080).multithreaded().run();
+    // app.port(18080).multithreaded().run();
+    app.port(18080).bindaddr("0.0.0.0").multithreaded().run();
 
     return 0;
 }

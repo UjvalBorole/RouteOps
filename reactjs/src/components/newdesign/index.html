@@ -1,0 +1,1557 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NaviVue 3D — Smart Route Navigation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+              mono: ["JetBrains Mono", "monospace"],
+            },
+            colors: {
+              nav: {
+                bg: "#0a0e1a",
+                surface: "rgba(15, 20, 40, 0.85)",
+                card: "rgba(20, 28, 55, 0.7)",
+                accent: "#3b82f6",
+                glow: "#60a5fa",
+                success: "#22c55e",
+                warning: "#f59e0b",
+                danger: "#ef4444",
+                purple: "#8b5cf6",
+                cyan: "#06b6d4",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background: #0a0e1a;
+        color: #e2e8f0;
+        overflow: hidden;
+        height: 100vh;
+        width: 100vw;
+      }
+
+      /* Map Container */
+      #map {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+      }
+
+      /* Leaflet Overrides */
+      .leaflet-control-zoom {
+        display: none !important;
+      }
+      .leaflet-control-attribution {
+        background: rgba(10, 14, 26, 0.8) !important;
+        color: #475569 !important;
+        font-size: 9px !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 8px !important;
+        padding: 2px 8px !important;
+      }
+      .leaflet-control-attribution a {
+        color: #60a5fa !important;
+      }
+
+      /* Glassmorphism Base */
+      .glass {
+        background: rgba(15, 20, 40, 0.75);
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .glass-light {
+        background: rgba(30, 40, 70, 0.5);
+        backdrop-filter: blur(16px) saturate(150%);
+        -webkit-backdrop-filter: blur(16px) saturate(150%);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      /* Glow Effects */
+      .glow-blue {
+        box-shadow:
+          0 0 30px rgba(59, 130, 246, 0.15),
+          0 0 60px rgba(59, 130, 246, 0.05),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+      .glow-green {
+        box-shadow:
+          0 0 20px rgba(34, 197, 94, 0.2),
+          0 0 40px rgba(34, 197, 94, 0.05);
+      }
+      .glow-purple {
+        box-shadow:
+          0 0 20px rgba(139, 92, 246, 0.2),
+          0 0 40px rgba(139, 92, 246, 0.05);
+      }
+      .glow-accent {
+        box-shadow:
+          0 0 40px rgba(59, 130, 246, 0.3),
+          0 0 80px rgba(59, 130, 246, 0.1);
+      }
+
+      /* Animated Route Line */
+      @keyframes routePulse {
+        0%,
+        100% {
+          opacity: 0.6;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      @keyframes dashMove {
+        to {
+          stroke-dashoffset: -30;
+        }
+      }
+
+      /* Custom Marker Styles */
+      .vehicle-marker {
+        width: 44px;
+        height: 44px;
+        position: relative;
+      }
+      .vehicle-marker-inner {
+        width: 44px;
+        height: 44px;
+        background: radial-gradient(
+          circle,
+          rgba(59, 130, 246, 0.4) 0%,
+          transparent 70%
+        );
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: vehiclePulseOuter 2s ease-in-out infinite;
+      }
+      .vehicle-marker-core {
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow:
+          0 0 20px rgba(59, 130, 246, 0.6),
+          0 0 40px rgba(59, 130, 246, 0.3);
+        animation: vehiclePulseCore 2s ease-in-out infinite;
+      }
+      @keyframes vehiclePulseOuter {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.6;
+        }
+        50% {
+          transform: scale(1.3);
+          opacity: 0.3;
+        }
+      }
+      @keyframes vehiclePulseCore {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      .destination-marker {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow:
+          0 0 20px rgba(239, 68, 68, 0.5),
+          0 4px 12px rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .destination-marker i {
+        transform: rotate(45deg);
+        color: white;
+        width: 16px;
+        height: 16px;
+      }
+
+      /* Turn Direction Icons */
+      .turn-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      /* Metric Card */
+      .metric-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
+      }
+
+      /* Slide Panels */
+      .panel-right {
+        transform: translateX(110%);
+        transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .panel-right.open {
+        transform: translateX(0);
+      }
+      .panel-bottom {
+        transform: translateY(110%);
+        transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .panel-bottom.open {
+        transform: translateY(0);
+      }
+
+      /* Progress Bar */
+      .route-progress {
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
+        background-size: 200% 100%;
+        animation: progressShimmer 3s ease-in-out infinite;
+      }
+      @keyframes progressShimmer {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(59, 130, 246, 0.3);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(59, 130, 246, 0.5);
+      }
+
+      /* Map tile 3D perspective tilt */
+      .map-3d-wrapper {
+        perspective: 1800px;
+      }
+      .map-3d-inner {
+        transform: rotateX(25deg) scale(1.08);
+        transform-origin: center 70%;
+        transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .map-3d-inner.flat {
+        transform: rotateX(0deg) scale(1);
+      }
+
+      /* Search Input */
+      .search-input:focus {
+        box-shadow:
+          0 0 0 2px rgba(59, 130, 246, 0.3),
+          0 0 30px rgba(59, 130, 246, 0.1);
+      }
+
+      /* Ambient Background Orbs */
+      .ambient-orb {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(100px);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* Button ripple */
+      .btn-nav {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .btn-nav:active {
+        transform: scale(0.95);
+      }
+
+      /* Speed Indicator Arc */
+      .speed-arc {
+        stroke-dasharray: 220;
+        stroke-dashoffset: 220;
+        transition: stroke-dashoffset 1s ease-out;
+      }
+
+      /* Floating action buttons */
+      .fab {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .fab:hover {
+        transform: scale(1.1);
+      }
+      .fab:active {
+        transform: scale(0.9);
+      }
+
+      /* Notification Toast */
+      .toast {
+        animation: toastIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      @keyframes toastIn {
+        from {
+          transform: translateY(-20px) scale(0.9);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
+      }
+
+      /* Skeleton Loading */
+      @keyframes shimmer {
+        0% {
+          background-position: -200px 0;
+        }
+        100% {
+          background-position: 200px 0;
+        }
+      }
+      .skeleton {
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.03) 25%,
+          rgba(255, 255, 255, 0.08) 50%,
+          rgba(255, 255, 255, 0.03) 75%
+        );
+        background-size: 400px 100%;
+        animation: shimmer 1.5s infinite;
+      }
+
+      /* Turn list item animation */
+      .turn-item {
+        animation: turnItemIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      @keyframes turnItemIn {
+        from {
+          transform: translateX(-20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      /* Breathing border for active turn */
+      @keyframes breathBorder {
+        0%,
+        100% {
+          border-color: rgba(59, 130, 246, 0.3);
+        }
+        50% {
+          border-color: rgba(59, 130, 246, 0.8);
+        }
+      }
+
+      /* Live dot indicator */
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        background: #22c55e;
+        border-radius: 50%;
+        animation: livePulse 1.5s ease-in-out infinite;
+      }
+      @keyframes livePulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        }
+        50% {
+          box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-nav-bg">
+    <!-- Ambient Background Orbs for depth -->
+    <div
+      class="ambient-orb"
+      style="
+        width: 600px;
+        height: 600px;
+        background: rgba(59, 130, 246, 0.08);
+        top: -200px;
+        left: -100px;
+      "
+    ></div>
+    <div
+      class="ambient-orb"
+      style="
+        width: 500px;
+        height: 500px;
+        background: rgba(139, 92, 246, 0.06);
+        bottom: -150px;
+        right: -100px;
+      "
+    ></div>
+    <div
+      class="ambient-orb"
+      style="
+        width: 400px;
+        height: 400px;
+        background: rgba(6, 182, 212, 0.05);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      "
+    ></div>
+
+    <!-- Map Container with 3D wrapper -->
+    <div class="map-3d-wrapper absolute inset-0 z-[1]">
+      <div id="map-3d-inner" class="map-3d-inner absolute inset-0">
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <!-- ═══════ TOP STATUS BAR ═══════ -->
+    <div
+      id="topBar"
+      class="fixed top-0 left-0 right-0 z-[1000] p-3 md:p-4 flex items-center gap-3 pointer-events-none"
+    >
+      <!-- Search / Destination -->
+      <div
+        class="glass rounded-2xl px-4 py-3 flex-1 flex items-center gap-3 pointer-events-auto glow-blue max-w-xl"
+      >
+        <i data-lucide="search" class="w-5 h-5 text-nav-glow flex-shrink-0"></i>
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="Search destination..."
+          class="search-input bg-transparent border-none outline-none text-white placeholder-slate-500 text-sm w-full font-medium"
+        />
+        <div class="flex items-center gap-1.5 ml-auto">
+          <div class="live-dot"></div>
+          <span
+            class="text-[10px] font-bold text-green-400 uppercase tracking-wider"
+            >Live</span
+          >
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="hidden md:flex items-center gap-2 pointer-events-auto">
+        <div
+          class="glass rounded-2xl px-4 py-3 flex items-center gap-2.5 glow-blue min-w-[140px]"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center"
+          >
+            <i data-lucide="clock" class="w-5 h-5 text-blue-400"></i>
+          </div>
+          <div>
+            <div
+              id="etaTime"
+              class="text-lg font-bold text-white leading-tight"
+            >
+              12 min
+            </div>
+            <div
+              class="text-[10px] text-slate-400 uppercase tracking-wider font-medium"
+            >
+              ETA
+            </div>
+          </div>
+        </div>
+        <div
+          class="glass rounded-2xl px-4 py-3 flex items-center gap-2.5 min-w-[140px]"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 flex items-center justify-center"
+          >
+            <i data-lucide="route" class="w-5 h-5 text-purple-400"></i>
+          </div>
+          <div>
+            <div
+              id="distRemaining"
+              class="text-lg font-bold text-white leading-tight"
+            >
+              4.2 km
+            </div>
+            <div
+              class="text-[10px] text-slate-400 uppercase tracking-wider font-medium"
+            >
+              Distance
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Actions -->
+      <div class="flex items-center gap-2 pointer-events-auto ml-auto">
+        <button
+          id="toggle3DBtn"
+          class="glass rounded-xl w-11 h-11 flex items-center justify-center fab glow-blue"
+          title="Toggle 3D View"
+        >
+          <i data-lucide="box" class="w-5 h-5 text-blue-400"></i>
+        </button>
+        <button
+          id="togglePanelBtn"
+          class="glass rounded-xl w-11 h-11 flex items-center justify-center fab"
+          title="Route Details"
+        >
+          <i data-lucide="panel-right" class="w-5 h-5 text-slate-300"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════ LEFT FLOATING CONTROLS ═══════ -->
+    <div
+      class="fixed left-3 md:left-4 top-1/2 -translate-y-1/2 z-[1000] flex flex-col gap-2"
+    >
+      <button
+        id="zoomInBtn"
+        class="glass rounded-xl w-11 h-11 flex items-center justify-center fab"
+        title="Zoom In"
+      >
+        <i data-lucide="plus" class="w-5 h-5 text-slate-300"></i>
+      </button>
+      <button
+        id="zoomOutBtn"
+        class="glass rounded-xl w-11 h-11 flex items-center justify-center fab"
+        title="Zoom Out"
+      >
+        <i data-lucide="minus" class="w-5 h-5 text-slate-300"></i>
+      </button>
+      <div class="h-px bg-white/5 my-1"></div>
+      <button
+        id="locateBtn"
+        class="glass rounded-xl w-11 h-11 flex items-center justify-center fab glow-blue"
+        title="My Location"
+      >
+        <i data-lucide="locate" class="w-5 h-5 text-blue-400"></i>
+      </button>
+      <button
+        id="layerBtn"
+        class="glass rounded-xl w-11 h-11 flex items-center justify-center fab"
+        title="Map Layers"
+      >
+        <i data-lucide="layers" class="w-5 h-5 text-slate-300"></i>
+      </button>
+      <button
+        id="compassBtn"
+        class="glass rounded-xl w-11 h-11 flex items-center justify-center fab"
+        title="Compass"
+      >
+        <i data-lucide="compass" class="w-5 h-5 text-slate-300"></i>
+      </button>
+    </div>
+
+    <!-- ═══════ BOTTOM NAVIGATION PANEL ═══════ -->
+    <div
+      id="bottomPanel"
+      class="fixed bottom-0 left-0 right-0 z-[1000] p-3 md:p-4"
+    >
+      <!-- Main Navigation Card -->
+      <div class="glass rounded-3xl overflow-hidden glow-blue">
+        <!-- Route Progress Bar -->
+        <div class="h-1 w-full bg-white/5">
+          <div
+            id="routeProgress"
+            class="route-progress h-full rounded-full"
+            style="width: 62%"
+          ></div>
+        </div>
+
+        <div class="p-4 md:p-5">
+          <!-- Active Turn Instruction -->
+          <div class="flex items-center gap-4 mb-4">
+            <div
+              class="turn-icon bg-gradient-to-br from-blue-500/30 to-blue-600/20 border border-blue-500/20"
+            >
+              <i
+                data-lucide="corner-up-right"
+                class="w-6 h-6 text-blue-400"
+              ></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span
+                  id="turnDistance"
+                  class="text-sm font-bold text-blue-400 font-mono"
+                  >200 m</span
+                >
+                <span class="text-xs text-slate-500">·</span>
+                <span id="turnStreet" class="text-xs text-slate-400 truncate"
+                  >Park Avenue</span
+                >
+              </div>
+              <h2
+                id="turnInstruction"
+                class="text-lg md:text-xl font-bold text-white leading-snug truncate"
+              >
+                Turn right onto Park Avenue
+              </h2>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div
+                id="nextTurnIcon"
+                class="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center mb-1"
+              >
+                <i
+                  data-lucide="corner-up-left"
+                  class="w-5 h-5 text-slate-400"
+                ></i>
+              </div>
+              <span
+                id="nextTurnDist"
+                class="text-[10px] text-slate-500 font-mono"
+                >500m</span
+              >
+            </div>
+          </div>
+
+          <!-- Metrics Row -->
+          <div class="grid grid-cols-4 gap-2 mb-4">
+            <div
+              class="metric-card glass-light rounded-xl p-3 text-center cursor-pointer"
+              id="speedCard"
+            >
+              <div class="flex items-center justify-center mb-1.5">
+                <svg
+                  width="44"
+                  height="44"
+                  viewBox="0 0 80 80"
+                  class="rotate-[-90deg]"
+                >
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="35"
+                    fill="none"
+                    stroke="rgba(255,255,255,0.05)"
+                    stroke-width="6"
+                  />
+                  <circle
+                    id="speedArc"
+                    cx="40"
+                    cy="40"
+                    r="35"
+                    fill="none"
+                    stroke="url(#speedGrad)"
+                    stroke-width="6"
+                    stroke-linecap="round"
+                    class="speed-arc"
+                  />
+                  <defs>
+                    <linearGradient
+                      id="speedGrad"
+                      x1="0%"
+                      y1="0%"
+                      x2="100%"
+                      y2="0%"
+                    >
+                      <stop offset="0%" stop-color="#3b82f6" />
+                      <stop offset="100%" stop-color="#06b6d4" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              <div
+                id="speedValue"
+                class="text-xl font-bold text-white font-mono leading-none"
+              >
+                48
+              </div>
+              <div
+                class="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5"
+              >
+                km/h
+              </div>
+            </div>
+            <div class="metric-card glass-light rounded-xl p-3 text-center">
+              <i
+                data-lucide="timer"
+                class="w-5 h-5 text-green-400 mx-auto mb-1"
+              ></i>
+              <div
+                id="etaCard"
+                class="text-xl font-bold text-white font-mono leading-none"
+              >
+                12
+              </div>
+              <div
+                class="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5"
+              >
+                min left
+              </div>
+            </div>
+            <div class="metric-card glass-light rounded-xl p-3 text-center">
+              <i
+                data-lucide="road"
+                class="w-5 h-5 text-purple-400 mx-auto mb-1"
+              ></i>
+              <div
+                id="distCard"
+                class="text-xl font-bold text-white font-mono leading-none"
+              >
+                4.2
+              </div>
+              <div
+                class="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5"
+              >
+                km
+              </div>
+            </div>
+            <div class="metric-card glass-light rounded-xl p-3 text-center">
+              <i
+                data-lucide="gauge"
+                class="w-5 h-5 text-amber-400 mx-auto mb-1"
+              ></i>
+              <div
+                id="trafficCard"
+                class="text-xl font-bold text-white font-mono leading-none"
+              >
+                Mod
+              </div>
+              <div
+                class="text-[9px] text-slate-500 uppercase tracking-wider mt-0.5"
+              >
+                Traffic
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center gap-2">
+            <button
+              id="recenterBtn"
+              class="btn-nav glass-light rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm font-semibold text-blue-400 flex-1 justify-center hover:bg-blue-500/10"
+            >
+              <i data-lucide="crosshair" class="w-4 h-4"></i>
+              Recenter
+            </button>
+            <button
+              id="muteBtn"
+              class="btn-nav glass-light rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm font-semibold text-slate-400 flex-1 justify-center hover:bg-white/5"
+            >
+              <i data-lucide="volume-2" class="w-4 h-4"></i>
+              <span id="muteLabel">Sound On</span>
+            </button>
+            <button
+              id="altRouteBtn"
+              class="btn-nav glass-light rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm font-semibold text-slate-400 flex-1 justify-center hover:bg-white/5"
+            >
+              <i data-lucide="git-branch" class="w-4 h-4"></i>
+              Alt Route
+            </button>
+            <button
+              id="endNavBtn"
+              class="btn-nav rounded-xl px-5 py-2.5 bg-red-500/20 border border-red-500/30 text-sm font-bold text-red-400 hover:bg-red-500/30"
+            >
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ RIGHT ROUTE DETAILS PANEL ═══════ -->
+    <div
+      id="rightPanel"
+      class="panel-right fixed top-0 right-0 bottom-0 w-full md:w-[380px] z-[1001] glass border-l border-white/5 overflow-hidden flex flex-col"
+    >
+      <!-- Panel Header -->
+      <div
+        class="p-5 border-b border-white/5 flex items-center justify-between"
+      >
+        <div>
+          <h3 class="text-lg font-bold text-white">Route Details</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Optimized navigation path</p>
+        </div>
+        <button
+          id="closePanelBtn"
+          class="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+        >
+          <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+        </button>
+      </div>
+
+      <!-- Route Summary -->
+      <div class="p-5 border-b border-white/5">
+        <div class="flex items-center gap-4">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <div
+                class="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+              ></div>
+              <span class="text-xs text-slate-500">From</span>
+            </div>
+            <p class="text-sm font-semibold text-white truncate">
+              Current Location
+            </p>
+          </div>
+          <div class="flex-shrink-0 flex flex-col items-center gap-0.5">
+            <div
+              class="w-px h-6 bg-gradient-to-b from-blue-500/50 to-red-500/50"
+            ></div>
+            <span class="text-[9px] text-slate-600 font-mono">4.2km</span>
+            <div
+              class="w-px h-6 bg-gradient-to-b from-red-500/50 to-red-500/80"
+            ></div>
+          </div>
+          <div class="flex-1 text-right">
+            <div class="flex items-center gap-2 mb-1 justify-end">
+              <span class="text-xs text-slate-500">To</span>
+              <div
+                class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+              ></div>
+            </div>
+            <p class="text-sm font-semibold text-white truncate">
+              Grand Central Terminal
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Route Stats -->
+      <div class="p-5 border-b border-white/5 grid grid-cols-3 gap-3">
+        <div class="text-center">
+          <div class="text-xl font-bold text-white font-mono">12</div>
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider">
+            Minutes
+          </div>
+        </div>
+        <div class="text-center border-x border-white/5">
+          <div class="text-xl font-bold text-white font-mono">4.2</div>
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider">
+            Km
+          </div>
+        </div>
+        <div class="text-center">
+          <div class="text-xl font-bold text-green-400 font-mono">Low</div>
+          <div class="text-[10px] text-slate-500 uppercase tracking-wider">
+            Traffic
+          </div>
+        </div>
+      </div>
+
+      <!-- Turn-by-Turn Directions -->
+      <div class="flex-1 overflow-y-auto p-5">
+        <h4
+          class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3"
+        >
+          Turn-by-Turn
+        </h4>
+        <div id="turnList" class="space-y-2">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Panel Footer -->
+      <div class="p-5 border-t border-white/5">
+        <button
+          class="btn-nav w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-shadow"
+        >
+          Start Navigation
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════ LAYER SELECTOR PANEL ═══════ -->
+    <div
+      id="layerPanel"
+      class="panel-bottom fixed bottom-24 left-4 right-4 md:left-auto md:right-auto md:w-72 z-[1001] glass rounded-2xl overflow-hidden"
+    >
+      <div
+        class="p-4 border-b border-white/5 flex items-center justify-between"
+      >
+        <h4 class="text-sm font-bold text-white">Map Style</h4>
+        <button
+          id="closeLayerBtn"
+          class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+        >
+          <i data-lucide="x" class="w-4 h-4 text-slate-400"></i>
+        </button>
+      </div>
+      <div class="p-3 grid grid-cols-2 gap-2" id="layerOptions">
+        <button
+          data-layer="dark"
+          class="layer-option active glass-light rounded-xl p-3 text-center transition-all border border-blue-500/30"
+        >
+          <i data-lucide="moon" class="w-5 h-5 text-blue-400 mx-auto mb-1"></i>
+          <div class="text-[11px] font-semibold text-white">Dark</div>
+        </button>
+        <button
+          data-layer="satellite"
+          class="layer-option glass-light rounded-xl p-3 text-center transition-all border border-transparent hover:border-white/10"
+        >
+          <i
+            data-lucide="satellite"
+            class="w-5 h-5 text-slate-400 mx-auto mb-1"
+          ></i>
+          <div class="text-[11px] font-semibold text-slate-400">Satellite</div>
+        </button>
+        <button
+          data-layer="streets"
+          class="layer-option glass-light rounded-xl p-3 text-center transition-all border border-transparent hover:border-white/10"
+        >
+          <i
+            data-lucide="building-2"
+            class="w-5 h-5 text-slate-400 mx-auto mb-1"
+          ></i>
+          <div class="text-[11px] font-semibold text-slate-400">Streets</div>
+        </button>
+        <button
+          data-layer="topo"
+          class="layer-option glass-light rounded-xl p-3 text-center transition-all border border-transparent hover:border-white/10"
+        >
+          <i
+            data-lucide="mountain"
+            class="w-5 h-5 text-slate-400 mx-auto mb-1"
+          ></i>
+          <div class="text-[11px] font-semibold text-slate-400">Terrain</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════ NOTIFICATION TOAST ═══════ -->
+    <div
+      id="toast"
+      class="fixed top-20 left-1/2 -translate-x-1/2 z-[2000] hidden"
+    >
+      <div
+        class="toast glass rounded-xl px-5 py-3 flex items-center gap-3 glow-blue"
+      >
+        <i data-lucide="info" class="w-5 h-5 text-blue-400 flex-shrink-0"></i>
+        <span id="toastMsg" class="text-sm font-medium text-white"></span>
+      </div>
+    </div>
+
+    <!-- ═══════ SCRIPTS ═══════ -->
+    <script>
+      // ============================================
+      // 1. MAP INITIALIZATION
+      // ============================================
+      const map = L.map("map", {
+        center: [40.758, -73.9855],
+        zoom: 16,
+        zoomControl: false,
+        attributionControl: true,
+        preferCanvas: true,
+      });
+
+      // Tile Layers
+      const tileLayers = {
+        dark: L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 20,
+          },
+        ),
+        satellite: L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {
+            attribution: "Tiles &copy; Esri",
+            maxZoom: 19,
+          },
+        ),
+        streets: L.tileLayer(
+          "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 20,
+          },
+        ),
+        topo: L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenTopoMap",
+          maxZoom: 17,
+        }),
+      };
+
+      let currentLayer = "dark";
+      tileLayers.dark.addTo(map);
+
+      // ============================================
+      // 2. ROUTE DATA
+      // ============================================
+      const routePoints = [
+        [40.758, -73.9855],
+        [40.7585, -73.984],
+        [40.759, -73.9825],
+        [40.7598, -73.981],
+        [40.7605, -73.9795],
+        [40.761, -73.978],
+        [40.7615, -73.9765],
+        [40.762, -73.975],
+        [40.7625, -73.9738],
+        [40.7632, -73.9725],
+        [40.7638, -73.9715],
+        [40.7643, -73.9705],
+        [40.7649, -73.97],
+        [40.7655, -73.9695],
+        [40.766, -73.969],
+      ];
+
+      // Alternate route
+      const altRoutePoints = [
+        [40.758, -73.9855],
+        [40.7583, -73.9835],
+        [40.7592, -73.982],
+        [40.76, -73.9805],
+        [40.7608, -73.9788],
+        [40.7618, -73.9775],
+        [40.7625, -73.976],
+        [40.763, -73.9742],
+        [40.7635, -73.9728],
+        [40.764, -73.9712],
+        [40.7645, -73.97],
+        [40.7652, -73.9692],
+        [40.766, -73.969],
+      ];
+
+      const turnDirections = [
+        {
+          instruction: "Head north on 7th Avenue",
+          distance: "200 m",
+          icon: "arrow-up",
+          street: "7th Avenue",
+        },
+        {
+          instruction: "Turn right onto Park Avenue",
+          distance: "500 m",
+          icon: "corner-up-right",
+          street: "Park Avenue",
+        },
+        {
+          instruction: "Continue onto Madison Ave",
+          distance: "300 m",
+          icon: "arrow-up",
+          street: "Madison Ave",
+        },
+        {
+          instruction: "Turn left onto E 42nd Street",
+          distance: "400 m",
+          icon: "corner-up-left",
+          street: "E 42nd St",
+        },
+        {
+          instruction: "Slight right toward Lexington",
+          distance: "250 m",
+          icon: "corner-up-right",
+          street: "Lexington Ave",
+        },
+        {
+          instruction: "Continue onto Lexington Ave",
+          distance: "600 m",
+          icon: "arrow-up",
+          street: "Lexington Ave",
+        },
+        {
+          instruction: "Turn left onto E 44th Street",
+          distance: "350 m",
+          icon: "corner-up-left",
+          street: "E 44th St",
+        },
+        {
+          instruction: "Turn right onto Vanderbilt",
+          distance: "200 m",
+          icon: "corner-up-right",
+          street: "Vanderbilt Ave",
+        },
+        {
+          instruction: "Continue to destination",
+          distance: "400 m",
+          icon: "flag",
+          street: "Grand Central",
+        },
+      ];
+
+      // ============================================
+      // 3. DRAW ROUTE WITH GLOW EFFECT
+      // ============================================
+
+      // Glow layer (wider, semi-transparent)
+      const routeGlow = L.polyline(routePoints, {
+        color: "#3b82f6",
+        weight: 14,
+        opacity: 0.15,
+        lineCap: "round",
+        lineJoin: "round",
+      }).addTo(map);
+
+      // Outer glow
+      const routeGlow2 = L.polyline(routePoints, {
+        color: "#3b82f6",
+        weight: 8,
+        opacity: 0.3,
+        lineCap: "round",
+        lineJoin: "round",
+      }).addTo(map);
+
+      // Main route line
+      const routeLine = L.polyline(routePoints, {
+        color: "#60a5fa",
+        weight: 4,
+        opacity: 1,
+        lineCap: "round",
+        lineJoin: "round",
+        dashArray: "12 6",
+        className: "animated-route",
+      }).addTo(map);
+
+      // Alternate route (hidden by default)
+      const altRouteGlow = L.polyline(altRoutePoints, {
+        color: "#8b5cf6",
+        weight: 10,
+        opacity: 0,
+        lineCap: "round",
+      }).addTo(map);
+
+      const altRouteLine = L.polyline(altRoutePoints, {
+        color: "#a78bfa",
+        weight: 4,
+        opacity: 0,
+        lineCap: "round",
+        dashArray: "8 8",
+      }).addTo(map);
+
+      let showAltRoute = false;
+
+      // ============================================
+      // 4. VEHICLE & DESTINATION MARKERS
+      // ============================================
+
+      // Custom vehicle marker
+      const vehicleIcon = L.divIcon({
+        html: `
+        <div class="vehicle-marker">
+          <div class="vehicle-marker-inner">
+            <div class="vehicle-marker-core">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="3 12 6 3 18 3 21 12 18 21 6 21 3 12"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      `,
+        className: "",
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+      });
+
+      const destIcon = L.divIcon({
+        html: `
+        <div class="destination-marker">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        </div>
+      `,
+        className: "",
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
+      });
+
+      const vehicleMarker = L.marker(routePoints[0], {
+        icon: vehicleIcon,
+        zIndexOffset: 1000,
+      }).addTo(map);
+      const destMarker = L.marker(routePoints[routePoints.length - 1], {
+        icon: destIcon,
+        zIndexOffset: 999,
+      }).addTo(map);
+
+      // Intermediate waypoint dots
+      routePoints.forEach((pt, i) => {
+        if (i > 0 && i < routePoints.length - 1) {
+          L.circleMarker(pt, {
+            radius: 3,
+            fillColor: "#3b82f6",
+            fillOpacity: 0.5,
+            color: "#3b82f6",
+            weight: 1,
+            opacity: 0.3,
+          }).addTo(map);
+        }
+      });
+
+      // ============================================
+      // 5. POPULATE TURN LIST
+      // ============================================
+      const turnListEl = document.getElementById("turnList");
+      turnDirections.forEach((turn, i) => {
+        const isActive = i === 1; // Second turn is active
+        const div = document.createElement("div");
+        div.className = `turn-item flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer ${isActive ? "bg-blue-500/10 border border-blue-500/30" : "glass-light hover:bg-white/5"}`;
+        div.style.animationDelay = `${i * 0.05}s`;
+        if (isActive)
+          div.style.animation = "breathBorder 2s ease-in-out infinite";
+        div.innerHTML = `
+        <div class="turn-icon ${isActive ? "bg-gradient-to-br from-blue-500/40 to-blue-600/20 border border-blue-500/30" : "bg-white/5"}">
+          <i data-lucide="${turn.icon}" class="w-5 h-5 ${isActive ? "text-blue-400" : "text-slate-400"}"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold ${isActive ? "text-white" : "text-slate-300"} truncate">${turn.instruction}</div>
+          <div class="text-[11px] ${isActive ? "text-blue-400" : "text-slate-500"}">${turn.street}</div>
+        </div>
+        <div class="text-xs font-mono ${isActive ? "text-blue-400 font-bold" : "text-slate-500"}">${turn.distance}</div>
+      `;
+        turnListEl.appendChild(div);
+      });
+
+      // Re-create Lucide icons in the turn list
+      setTimeout(() => lucide.createIcons(), 100);
+
+      // ============================================
+      // 6. UI INTERACTIONS
+      // ============================================
+
+      // Panel toggles
+      const rightPanel = document.getElementById("rightPanel");
+      const layerPanel = document.getElementById("layerPanel");
+      let panelOpen = false;
+      let layerOpen = false;
+
+      document
+        .getElementById("togglePanelBtn")
+        .addEventListener("click", () => {
+          panelOpen = !panelOpen;
+          rightPanel.classList.toggle("open", panelOpen);
+        });
+
+      document.getElementById("closePanelBtn").addEventListener("click", () => {
+        panelOpen = false;
+        rightPanel.classList.remove("open");
+      });
+
+      document.getElementById("layerBtn").addEventListener("click", () => {
+        layerOpen = !layerOpen;
+        layerPanel.classList.toggle("open", layerOpen);
+      });
+
+      document.getElementById("closeLayerBtn").addEventListener("click", () => {
+        layerOpen = false;
+        layerPanel.classList.remove("open");
+      });
+
+      // Zoom controls
+      document
+        .getElementById("zoomInBtn")
+        .addEventListener("click", () => map.zoomIn());
+      document
+        .getElementById("zoomOutBtn")
+        .addEventListener("click", () => map.zoomOut());
+
+      // Locate
+      document.getElementById("locateBtn").addEventListener("click", () => {
+        map.setView(routePoints[0], 16, { animate: true });
+        showToast("Recentered on vehicle");
+      });
+
+      document.getElementById("recenterBtn").addEventListener("click", () => {
+        map.setView(vehicleMarker.getLatLng(), 16, { animate: true });
+        showToast("Map recentered");
+      });
+
+      // Compass
+      document.getElementById("compassBtn").addEventListener("click", () => {
+        map.setView(map.getCenter(), map.getZoom(), { animate: true });
+        showToast("Heading: North");
+      });
+
+      // 3D Toggle
+      let is3D = true;
+      document.getElementById("toggle3DBtn").addEventListener("click", () => {
+        is3D = !is3D;
+        document.getElementById("map-3d-inner").classList.toggle("flat", !is3D);
+        showToast(is3D ? "3D perspective enabled" : "Flat map view");
+      });
+
+      // Mute Toggle
+      let isMuted = false;
+      document.getElementById("muteBtn").addEventListener("click", () => {
+        isMuted = !isMuted;
+        const icon = document.getElementById("muteBtn").querySelector("i");
+        const label = document.getElementById("muteLabel");
+        if (isMuted) {
+          icon.setAttribute("data-lucide", "volume-x");
+          label.textContent = "Muted";
+        } else {
+          icon.setAttribute("data-lucide", "volume-2");
+          label.textContent = "Sound On";
+        }
+        lucide.createIcons();
+        showToast(isMuted ? "Navigation sound muted" : "Navigation sound on");
+      });
+
+      // End Navigation
+      document.getElementById("endNavBtn").addEventListener("click", () => {
+        showToast("Navigation ended");
+      });
+
+      // Alternate Route Toggle
+      document.getElementById("altRouteBtn").addEventListener("click", () => {
+        showAltRoute = !showAltRoute;
+        altRouteGlow.setStyle({ opacity: showAltRoute ? 0.15 : 0 });
+        altRouteLine.setStyle({ opacity: showAltRoute ? 0.8 : 0 });
+        showToast(
+          showAltRoute ? "Alternate route shown" : "Primary route only",
+        );
+      });
+
+      // Layer switching
+      document.querySelectorAll(".layer-option").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const layerName = btn.dataset.layer;
+          if (layerName === currentLayer) return;
+
+          // Update UI
+          document.querySelectorAll(".layer-option").forEach((b) => {
+            b.classList.remove("active");
+            b.classList.remove("border-blue-500/30");
+            b.classList.add("border-transparent");
+            b.querySelector("div").classList.remove("text-white");
+            b.querySelector("div").classList.add("text-slate-400");
+            const ic = b.querySelector("i");
+            if (ic) {
+              ic.classList.remove("text-blue-400");
+              ic.classList.add("text-slate-400");
+            }
+          });
+          btn.classList.add("active", "border-blue-500/30");
+          btn.classList.remove("border-transparent");
+          btn.querySelector("div").classList.add("text-white");
+          btn.querySelector("div").classList.remove("text-slate-400");
+          const ic2 = btn.querySelector("i");
+          if (ic2) {
+            ic2.classList.remove("text-slate-400");
+            ic2.classList.add("text-blue-400");
+          }
+
+          // Switch layer
+          map.removeLayer(tileLayers[currentLayer]);
+          tileLayers[layerName].addTo(map);
+          currentLayer = layerName;
+          showToast(
+            `Map style: ${layerName.charAt(0).toUpperCase() + layerName.slice(1)}`,
+          );
+        });
+      });
+
+      // Search
+      document
+        .getElementById("searchInput")
+        .addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            const query = e.target.value.trim();
+            if (query) {
+              showToast(`Searching: "${query}"`);
+              e.target.value = "";
+            }
+          }
+        });
+
+      // ============================================
+      // 7. ANIMATION SIMULATION
+      // ============================================
+
+      let routeIndex = 0;
+      let speed = 48;
+      let eta = 12;
+      let dist = 4.2;
+      let progress = 62;
+
+      function animateVehicle() {
+        routeIndex = (routeIndex + 1) % (routePoints.length - 1);
+        const start = routePoints[routeIndex];
+        const end =
+          routePoints[Math.min(routeIndex + 1, routePoints.length - 1)];
+
+        const steps = 30;
+        let step = 0;
+
+        function stepAnimation() {
+          if (step >= steps) {
+            // Update metrics randomly to simulate real-time
+            speed = Math.max(
+              20,
+              Math.min(80, speed + (Math.random() * 10 - 5)),
+            );
+            eta = Math.max(5, eta - 0.1);
+            dist = Math.max(0.5, dist - 0.05);
+            progress = Math.min(98, progress + 0.3);
+
+            updateMetrics();
+            return;
+          }
+
+          const t = step / steps;
+          const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // easeInOut
+          const lat = start[0] + (end[0] - start[0]) * eased;
+          const lng = start[1] + (end[1] - start[1]) * eased;
+
+          vehicleMarker.setLatLng([lat, lng]);
+          step++;
+          requestAnimationFrame(stepAnimation);
+        }
+        stepAnimation();
+      }
+
+      function updateMetrics() {
+        document.getElementById("speedValue").textContent = Math.round(speed);
+        document.getElementById("etaCard").textContent = Math.round(eta);
+        document.getElementById("distCard").textContent = dist.toFixed(1);
+        document.getElementById("etaTime").textContent =
+          `${Math.round(eta)} min`;
+        document.getElementById("distRemaining").textContent =
+          `${dist.toFixed(1)} km`;
+        document.getElementById("routeProgress").style.width = progress + "%";
+
+        // Speed arc animation
+        const arc = document.getElementById("speedArc");
+        const maxOffset = 220;
+        const normalizedSpeed = speed / 120;
+        arc.style.strokeDashoffset = maxOffset - normalizedSpeed * maxOffset;
+
+        // Traffic status
+        const trafEl = document.getElementById("trafficCard");
+        if (speed > 50) {
+          trafEl.textContent = "Low";
+          trafEl.className =
+            "text-xl font-bold text-green-400 font-mono leading-none";
+        } else if (speed > 30) {
+          trafEl.textContent = "Mod";
+          trafEl.className =
+            "text-xl font-bold text-amber-400 font-mono leading-none";
+        } else {
+          trafEl.textContent = "High";
+          trafEl.className =
+            "text-xl font-bold text-red-400 font-mono leading-none";
+        }
+
+        // Update next turn distance based on animation
+        const turnDists = ["200 m", "150 m", "100 m", "50 m", "0 m"];
+        const idx = Math.floor((Date.now() / 3000) % turnDists.length);
+        document.getElementById("turnDistance").textContent = turnDists[idx];
+      }
+
+      // Initial metrics
+      updateMetrics();
+
+      // Start animation loop
+      setInterval(animateVehicle, 3000);
+
+      // Route line dash animation
+      let dashOffset = 0;
+      function animateRouteDash() {
+        dashOffset -= 0.5;
+        routeLine.setStyle({ dashOffset: dashOffset });
+        requestAnimationFrame(animateRouteDash);
+      }
+      animateRouteDash();
+
+      // ============================================
+      // 8. TOAST NOTIFICATIONS
+      // ============================================
+      let toastTimeout;
+      function showToast(msg) {
+        const toast = document.getElementById("toast");
+        document.getElementById("toastMsg").textContent = msg;
+        toast.classList.remove("hidden");
+        toast.style.opacity = "1";
+
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          toast.style.opacity = "0";
+          setTimeout(() => toast.classList.add("hidden"), 300);
+        }, 2500);
+      }
+
+      // ============================================
+      // 9. INITIAL SETUP
+      // ============================================
+
+      // Fit map to route bounds
+      const bounds = L.latLngBounds(routePoints);
+      map.fitBounds(bounds, { padding: [80, 80] });
+
+      // Show layer panel as closed initially
+      layerPanel.classList.remove("open");
+
+      // Initialize Lucide icons
+      lucide.createIcons();
+
+      // Welcome toast
+      setTimeout(() => showToast("Navigation active — route optimized"), 1000);
+
+      // Handle window resize
+      window.addEventListener("resize", () => {
+        map.invalidateSize();
+      });
+
+      // Click on map to simulate adding a waypoint
+      map.on("click", (e) => {
+        L.circleMarker(e.latlng, {
+          radius: 4,
+          fillColor: "#8b5cf6",
+          fillOpacity: 0.8,
+          color: "#a78bfa",
+          weight: 2,
+          opacity: 0.8,
+        }).addTo(map);
+        showToast(
+          `Waypoint: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`,
+        );
+      });
+    </script>
+  </body>
+</html>

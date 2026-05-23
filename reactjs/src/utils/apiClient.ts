@@ -3,24 +3,24 @@ import tokenService from './tokenService';
 
 // Determine the API base URL based on environment
 const getBaseURL = () => {
-  // If running in Docker (container hostname would be 'gateway')
   if (typeof window !== 'undefined') {
-    // In browser environment, check if we're running on a Docker container
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    const port = window.location.port;
     
-    // If accessing from localhost, use localhost:8081
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8081';
+    // In Docker containers (non-localhost hostname)
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      // Use relative path - nginx will proxy /api/ to gateway service
+      return '';
     }
     
-    // If accessing from a different hostname (Docker), use relative path
-    // The nginx reverse proxy will handle routing to the gateway
-    if (hostname !== 'localhost') {
-      return ''; // Use relative URLs, nginx will proxy to gateway
-    }
+    // Local development or accessing via localhost
+    // Build the full URL based on current window location
+    const baseUrl = `${protocol}//${hostname}${port ? ':' + port : ''}`;
+    return baseUrl;
   }
   
-  // Fallback
+  // Fallback for server-side rendering
   return 'http://localhost:8081';
 };
 

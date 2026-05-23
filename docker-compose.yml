@@ -25,20 +25,25 @@ services:
     networks:
       - route-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 3. Java Backend
   gateway:
     build: ./gateway
     container_name: routeops-backend
     ports:
-      - "8081:8080"
+      - "8081:8081"
     environment:
-      # Database settings
-      SPRING_DATASOURCE_URL: jdbc:postgresql://routeops-db:5432/routeops
+      # Database settings - Use service name 'postgres' not container name
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/routeops
       SPRING_DATASOURCE_USERNAME: user
 
-      # --- FIX FOR CONNECTION REFUSED ---
-      # Tell it to look for the 'routing-engine' container on port 18080
+      # Routing Engine URL - Use service name 'routing_engine' and include /route endpoint
+      # ROUTEOPS_ROUTING_URL: http://routing_engine:18080/route
       ROUTEOPS_ROUTING_URL: http://routing-engine:18080
     secrets:
       - db_password
@@ -61,7 +66,7 @@ services:
       - route-network
     environment:
       # Enable Nginx to forward API requests to gateway
-      GATEWAY_URL: http://gateway:8080
+      GATEWAY_URL: http://gateway:8081
 
 volumes:
   postgres_data:
