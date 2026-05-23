@@ -1,11 +1,13 @@
 package org.routeops.gateway.service;
 
 import org.routeops.gateway.dto.RouteResponse;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import lombok.extern.slf4j.Slf4j;
+
 
 @Service
 @Slf4j
@@ -13,31 +15,46 @@ public class RoutingService {
 
     private final WebClient webClient;
 
-    @SuppressWarnings("null")
-    public RoutingService(WebClient.Builder webClientBuilder,
-                          @Value("${routeops.routing.url}") String routingUrl) {
-        this.webClient = webClientBuilder.baseUrl(routingUrl).build();
+    public RoutingService(
+            @Qualifier("routingWebClient")
+            WebClient webClient
+    ) {
+        this.webClient = webClient;
     }
 
-    public RouteResponse getOptimalRoute(Double startLat, Double startLng, Double endLat, Double endLng, Double vehicleWeight) {
+ public RouteResponse getOptimalRoute(Double startLat, Double startLng, Double endLat, Double endLng, Double vehicleWeight) {
         try {
-            return webClient.get()
-                    .uri(uriBuilder -> {
-                        uriBuilder.queryParam("startLat", startLat);
-                        uriBuilder.queryParam("startLng", startLng);
-                        uriBuilder.queryParam("endLat", endLat);
-                        uriBuilder.queryParam("endLng", endLng);
+            vehicleWeight = vehicleWeight==null?0.0:vehicleWeight;
+            log.debug("Requesting route from {} to {} (weight: {})",
+                    new double[]{startLat, startLng},
+                    new double[]{endLat, endLng},
+                    vehicleWeight);
 
-                        if (vehicleWeight != null) {
-                            uriBuilder.queryParam("weight", vehicleWeight);
-                        }
-                        return uriBuilder.build();
-                    })
-                    .retrieve()
-                    .bodyToMono(RouteResponse.class)
-                    .block();
-        } catch (Exception e) {
-            log.warn("Routing Engine unavailable, falling back to local routing: {}", e.getMessage());
+
+            String weight = vehicleWeight.toString().trim();
+        RouteResponse response = webClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/route")
+                        .queryParam("startLat", startLat)
+                        .queryParam("startLng", startLng)
+                        .queryParam("endLat", endLat)
+                        .queryParam("endLng", endLng)
+                        .queryParam("weight", weight)
+                        .build())
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(),
+                        clientResponse -> {
+                            log.error("Routing Engine returned status: {}", clientResponse.statusCode());
+                            return clientResponse.createException();
+                        })
+                .bodyToMono(RouteResponse.class)
+                .block();
+
+
+        return response;
+                    } catch (Exception e) {
+            log.warn("Routing Engine unavailable, falling back to local routing. Error: {} - {}",
+                    e.getClass().getSimpleName(), e.getMessage());
             return createFallbackRoute(startLat, startLng, endLat, endLng);
         }
     }

@@ -103,8 +103,8 @@ public class RouteService {
      */
     @Transactional
     public RoutePlanResponse planRoute(String username, RoutePlanRequest request) {
-        log.info("Planning route for user {} from ({},{}) to ({},{})",
-                username, request.startLat(), request.startLng(), request.endLat(), request.endLng());
+        log.info("Planning route for user {} from ({},{}) to ({},{}) by {}",
+                username, request.startLat(), request.startLng(), request.endLat(), request.endLng(),request.vehicleType());
 
         // Validate user exists
         User user = userRepository.findByUsername(username)
