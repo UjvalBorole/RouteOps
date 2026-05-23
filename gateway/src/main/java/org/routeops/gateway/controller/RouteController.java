@@ -2,6 +2,7 @@ package org.routeops.gateway.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.routeops.gateway.dto.route.*;
 import org.routeops.gateway.service.RouteService;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/routes")
 @RequiredArgsConstructor
+@Slf4j
 public class RouteController {
 
     private final RouteService routeService;
@@ -23,6 +25,7 @@ public class RouteController {
     public ResponseEntity<RoutePlanResponse> planRoute(@RequestBody @Valid RoutePlanRequest request) {
         String username = getCurrentUsername();
         RoutePlanResponse response = routeService.planRoute(username, request);
+        log.info("Plan Response ({})",response.toString());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -65,6 +68,7 @@ public class RouteController {
     public ResponseEntity<RouteProgressResponse> updateLocation(@RequestBody @Valid RouteLocationUpdateRequest request) {
         String username = getCurrentUsername();
         RouteProgressResponse response = routeService.updateLocation(username, request);
+        log.info("tracking location ({})",response.toString());
         return ResponseEntity.ok(response);
     }
 

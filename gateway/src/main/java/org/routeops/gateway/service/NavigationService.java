@@ -26,18 +26,18 @@ public class NavigationService {
     @Deprecated
     public NavigationResponse planNavigation(NavigationRequest request) {
         // Convert old request format to new format
-        RoutePlanRequest routeRequest = new RoutePlanRequest(
-                request.user1Lat(),
-                request.user1Lng(),
-                request.user2Lat(),
-                request.user2Lng(),
-                "Legacy Navigation Plan",
-                null, // startAddress
-                null, // destinationAddress
-                null, // vehicleType
-                request.thresholdDistanceMeters(),
-                null  // destinationThresholdSeconds
-        );
+//        RoutePlanRequest routeRequest = new RoutePlanRequest(
+//                request.user1Lat(),
+//                request.user1Lng(),
+//                request.user2Lat(),
+//                request.user2Lng(),
+//                "Legacy Navigation Plan",
+//                null, // startAddress
+//                null, // destinationAddress
+//                null, // vehicleType
+//                request.thresholdDistanceMeters(),
+//                null  // destinationThresholdSeconds
+//        );
 
         // This would require a username, which we don't have in the old API
         // For backward compatibility, we'll return a simplified response
