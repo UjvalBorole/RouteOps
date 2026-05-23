@@ -45,6 +45,7 @@ services:
       # Routing Engine URL - Use service name 'routing_engine' and include /route endpoint
       # ROUTEOPS_ROUTING_URL: http://routing_engine:18080/route
       ROUTEOPS_ROUTING_URL: http://routing-engine:18080
+      ROUTEOPS_FRONTEND_URL: http://frontend:4200
     secrets:
       - db_password
       - jwt_secret
