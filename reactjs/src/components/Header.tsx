@@ -69,13 +69,13 @@ const Header: React.FC = () => {
             onClick={() => { navigate('/'); setSidebarVisible(false); }}
             className="w-full mb-3"
           />
-          <Button
+          {/* <Button
             label="Route History"
             icon="pi pi-history"
             text
             onClick={() => { navigate('/history'); setSidebarVisible(false); }}
             className="w-full mb-3"
-          />
+          /> */}
           <Button
             label="Logout"
             icon="pi pi-sign-out"

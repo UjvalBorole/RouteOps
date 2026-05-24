@@ -11,6 +11,7 @@ import apiClient from '../utils/apiClient';
 import tokenService from '../utils/tokenService';
 import './Dashboard.css';
 import L from 'leaflet';
+import axios from 'axios';
 
 // Fix Leaflet icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -180,6 +181,11 @@ const Dashboard: React.FC = () => {
   const [trackingRequestPending, setTrackingRequestPending] = useState(false);
   const [trackingStartedAt, setTrackingStartedAt] = useState<number | null>(null);
   const [lastLocationMovementAt, setLastLocationMovementAt] = useState<number | null>(null);
+  const [searchResults, setSearchResults] = useState<PhotonLocation[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+
 
   // Refs
   const intervalRef = useRef<number | null>(null);
@@ -201,6 +207,9 @@ const Dashboard: React.FC = () => {
   const pausedPositionRef = useRef<Location | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const waypointAddressMapRef = useRef<Record<string, string>>({});
+
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const searchBoxRef = useRef<HTMLDivElement | null>(null);
 
   // Effects
   useEffect(() => {
@@ -283,6 +292,42 @@ const Dashboard: React.FC = () => {
     return null;
   };
 
+  useEffect(() => {
+
+    const handleClickOutside = (
+      event: MouseEvent
+    ) => {
+
+      if (
+        searchBoxRef.current &&
+        !searchBoxRef.current.contains(
+          event.target as Node
+        )
+      ) {
+
+        setShowDropdown(false);
+
+      }
+
+    };
+
+    document.addEventListener(
+      'mousedown',
+      handleClickOutside
+    );
+
+    return () => {
+
+      document.removeEventListener(
+        'mousedown',
+        handleClickOutside
+      );
+
+    };
+
+  }, []);
+
+
   const geocodeWithNominatim = async (query: string): Promise<Location | null> => {
     const response = await apiClient.get('/api/geocoding/search', {
       params: { q: query, countrycodes: 'in' },
@@ -350,17 +395,274 @@ const Dashboard: React.FC = () => {
     return null;
   };
 
-  const reverseGeocode = async (lat: number, lng: number): Promise<string | null> => {
+
+
+  const reverseGeocode = async (
+    lat: number,
+    lng: number
+  ): Promise<string | null> => {
+
     try {
-      const response = await apiClient.get('/api/geocoding/reverse', {
-        params: { lat, lon: lng },
-        timeout: 12000,
-      });
+
+      const response = await apiClient.get(
+        '/api/geocoding/reverse',
+        {
+          params: {
+            lat,
+            lon: lng,
+          },
+          timeout: 20000,
+        }
+      );
+
       return response.data?.displayName ?? null;
-    } catch {
+
+    } catch (error: any) {
+
+      console.error(
+        'Reverse geocoding failed:',
+        {
+          status: error?.response?.status,
+          data: error?.response?.data,
+          message: error?.message,
+        }
+      );
+
       return null;
     }
   };
+
+
+  interface PhotonLocation {
+    name: string;
+    fullAddress: string;
+    lat: number;
+    lng: number;
+  }
+
+
+  useEffect(() => {
+
+    const debounce = setTimeout(async () => {
+
+      if (
+        !endAddress ||
+        endAddress.trim().length < 3
+      ) {
+
+        setSearchResults([]);
+        setShowDropdown(false);
+        return;
+
+      }
+
+      setIsSearching(true);
+
+      const results =
+        await searchLocation(endAddress);
+
+      setSearchResults(results);
+
+      setShowDropdown(results.length > 0);
+
+      setSelectedSuggestionIndex(-1);
+
+      setIsSearching(false);
+
+    }, 400);
+
+    return () => clearTimeout(debounce);
+
+  }, [endAddress]);
+
+
+
+  const searchLocation = async (query: string): Promise<PhotonLocation[]> => {
+    if (!query || query.trim().length < 3) {
+      return [];
+    }
+
+    try {
+      const response = await axios.get('https://photon.komoot.io/api/', {
+        params: {
+          q: query,
+          limit: 5,
+        },
+        timeout: 15000,
+      });
+
+      const features = response.data?.features ?? [];
+
+      return features.map((item: any) => {
+        const properties = item.properties || {};
+        const coordinates = item.geometry?.coordinates || [];
+
+        const lng = coordinates[0];
+        const lat = coordinates[1];
+
+        const parts = [
+          properties.name,
+          properties.street,
+          properties.city,
+          properties.state,
+          properties.country,
+          properties.postcode,
+        ].filter(Boolean);
+
+        return {
+          name: properties.name || properties.city || 'Unknown Location',
+          fullAddress: parts.join(', '),
+          lat,
+          lng,
+        };
+      });
+    } catch (error: any) {
+      console.error('Photon API failed:', {
+        status: error?.response?.status,
+        data: error?.response?.data,
+        message: error?.message,
+      });
+      return [];
+    }
+  };
+
+
+
+
+
+
+
+  const handleSelectSuggestion = (
+    item: PhotonLocation
+  ) => {
+
+    setEndAddress(item.fullAddress);
+
+    setEndLocation({
+      lat: item.lat,
+      lng: item.lng,
+    });
+
+    setSearchResults([]);
+
+    setShowDropdown(false);
+
+    setSelectedSuggestionIndex(-1);
+
+    setIsEditingNewRoute(true);
+
+    toast.success('Destination selected.');
+
+  };
+
+
+
+  const handleSearchKeyDown = async (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+
+    if (!showDropdown) {
+
+      if (e.key === 'Enter') {
+
+        await handleSetLocation(false);
+
+      }
+
+      return;
+
+    }
+
+    // DOWN ARROW
+    if (e.key === 'ArrowDown') {
+
+      e.preventDefault();
+
+      setSelectedSuggestionIndex((prev) => {
+
+        const next =
+          prev < searchResults.length - 1
+            ? prev + 1
+            : 0;
+
+        return next;
+
+      });
+
+    }
+
+    // UP ARROW
+    else if (e.key === 'ArrowUp') {
+
+      e.preventDefault();
+
+      setSelectedSuggestionIndex((prev) => {
+
+        const next =
+          prev > 0
+            ? prev - 1
+            : searchResults.length - 1;
+
+        return next;
+
+      });
+
+    }
+
+    // ENTER
+    else if (e.key === 'Enter') {
+
+      e.preventDefault();
+
+      if (
+        selectedSuggestionIndex >= 0 &&
+        searchResults[selectedSuggestionIndex]
+      ) {
+
+        handleSelectSuggestion(
+          searchResults[selectedSuggestionIndex]
+        );
+
+      } else {
+
+        await handleSetLocation(false);
+
+      }
+
+    }
+
+    // ESCAPE
+    else if (e.key === 'Escape') {
+
+      setShowDropdown(false);
+
+    }
+
+  };
+
+
+
+
+
+  useEffect(() => {
+
+    if (
+      selectedSuggestionIndex >= 0
+    ) {
+
+      const element =
+        document.getElementById(
+          `suggestion-${selectedSuggestionIndex}`
+        );
+
+      element?.scrollIntoView({
+        block: 'nearest',
+      });
+
+    }
+
+  }, [selectedSuggestionIndex]);
+
 
   const getCurrentGpsLocation = (): Promise<Location | null> => {
     if (!navigator.geolocation) return Promise.resolve(null);
@@ -1038,14 +1340,14 @@ const Dashboard: React.FC = () => {
   const displayedRouteStatus = isTrackingBlockedStatus(activeSession?.status)
     ? activeSession?.status || 'OFF'
     : isLocationStale
-    ? 'PAUSED'
-    : trackingRequestPending
-    ? 'WAITING'
-    : trackingEnabled
-    ? 'LIVE'
-    : activeSession?.onRoute
-    ? 'ON ROUTE'
-    : 'OFF';
+      ? 'PAUSED'
+      : trackingRequestPending
+        ? 'WAITING'
+        : trackingEnabled
+          ? 'LIVE'
+          : activeSession?.onRoute
+            ? 'ON ROUTE'
+            : 'OFF';
 
   const upcomingNode = useMemo(() => {
     const nodes = activeSession?.remainingPathNodes?.length
@@ -1069,12 +1371,12 @@ const Dashboard: React.FC = () => {
     instruction: isTerminalRouteStatus(activeSession?.status)
       ? `Status: ${activeSession?.status?.toLowerCase()}`
       : isLocationStale
-      ? `Location paused. Last update was more than 2 min ago.`
-      : activeSession
-      ? `Next waypoint ${nextPlaceName} in ${formatMinutes(nextWaypointEtaSeconds)}. ${formatMeters(distanceToNext)} remaining.`
-      : endLocation
-      ? `Ready to plan route to ${endAddress || 'destination'}`
-      : 'Set destination and plan route',
+        ? `Location paused. Last update was more than 2 min ago.`
+        : activeSession
+          ? `Next waypoint ${nextPlaceName} in ${formatMinutes(nextWaypointEtaSeconds)}. ${formatMeters(distanceToNext)} remaining.`
+          : endLocation
+            ? `Ready to plan route to ${endAddress || 'destination'}`
+            : 'Set destination and plan route',
     distance: formatMeters(distanceToNext),
     street: activeSession ? (currentAddress ? `Now: ${currentAddress}` : 'Current location') : 'Current route',
   };
@@ -1106,6 +1408,25 @@ const Dashboard: React.FC = () => {
     navigate('/login');
   };
 
+
+
+  const lastRoutePoint =
+  previewPath.length > 0
+    ? previewPath[previewPath.length - 1]
+    : null;
+
+
+const finalConnectorPath: [number, number][] = [];
+
+if (lastRoutePoint && endLocation) {
+  finalConnectorPath.push(
+    lastRoutePoint,
+    [endLocation.lat, endLocation.lng]
+  );
+}
+
+
+
   return (
     <div className="navi-vue-container">
       {/* Ambient Orbs */}
@@ -1116,9 +1437,9 @@ const Dashboard: React.FC = () => {
       {/* Map Container with 3D Toggle */}
       <div className="map-3d-wrapper">
         <div className={`map-3d-inner ${!is3D ? 'flat' : ''}`}>
-          <MapContainer 
-            center={[19.03, 72.87]} 
-            zoom={12} 
+          <MapContainer
+            center={[19.03, 72.87]}
+            zoom={12}
             style={{ height: '100%', width: '100%' }}
             zoomControl={false}
             preferCanvas
@@ -1203,6 +1524,18 @@ const Dashboard: React.FC = () => {
                     pathOptions={{ color: '#bfdbfe', weight: 1, fillColor: '#60a5fa', fillOpacity: 0.9, opacity: 0.9 }}
                   />
                 ))}
+              {finalConnectorPath.length > 0 && (
+                <Polyline
+                  positions={finalConnectorPath}
+                  pathOptions={{
+                    color: '#93c5fd',
+                    weight: 4,
+                    opacity: 0.9,
+                    dashArray: '6 6',
+                    lineCap: 'round',
+                  }}
+                />
+              )}
               </>
             )}
           </MapContainer>
@@ -1211,22 +1544,205 @@ const Dashboard: React.FC = () => {
 
       {/* Top Status Bar */}
       <div className="top-bar">
-        <div className="search-card glass-effect">
-          <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            type="text"
-            placeholder="Search destination..."
-            className="search-input-modern"
-            value={endAddress}
-            onChange={(e) => setEndAddress(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSetLocation(false)}
-          />
-          <div className={`live-indicator ${isLiveActive ? 'active' : trackingEnabled ? 'waiting' : ''}`}>
-            <div className="live-dot"></div>
-            <span>{displayedRouteStatus}</span>
+        {/* ============================== */}
+        {/* TOP SEARCH BAR */}
+        {/* ============================== */}
+
+        <div
+          className="top-bar-search"
+          ref={searchBoxRef}
+        >
+
+          <div className="search-wrapper">
+
+            {/* SEARCH CARD */}
+            <div className="search-card glass-effect">
+
+              {/* SEARCH ICON */}
+              <svg
+                className="search-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle
+                  cx="11"
+                  cy="11"
+                  r="8"
+                />
+
+                <line
+                  x1="21"
+                  y1="21"
+                  x2="16.65"
+                  y2="16.65"
+                />
+              </svg>
+
+              {/* SEARCH INPUT */}
+              <input
+                type="text"
+                placeholder="Search destination..."
+                className="search-input-modern"
+                value={endAddress}
+
+                onChange={(e) => {
+
+                  setEndAddress(
+                    e.target.value
+                  );
+
+                  setShowDropdown(true);
+
+                  setSelectedSuggestionIndex(-1);
+
+                }}
+
+                // onChange={(e) => {
+
+                //   const value = e.target.value;
+
+                //   setEndAddress(value);
+
+                //   setShowDropdown(true);
+
+                //   setSelectedSuggestionIndex(-1);
+
+                //   // =========================
+                //   // CLEAR DESTINATION
+                //   // =========================
+
+                //   if (!value.trim()) {
+
+                //     setEndLocation(null);
+
+                //     setSearchResults([]);
+
+                //     setShowDropdown(false);
+
+                //     setIsEditingNewRoute(false);
+
+                //   }
+
+                // }}
+
+                onFocus={() => {
+
+                  if (
+                    searchResults.length > 0
+                  ) {
+
+                    setShowDropdown(true);
+
+                  }
+
+                }}
+
+                onKeyDown={
+                  handleSearchKeyDown
+                }
+              />
+
+              {/* SEARCH LOADER */}
+              {
+                isSearching && (
+
+                  <div className="search-loader-container">
+
+                    <div className="search-loader"></div>
+
+                  </div>
+
+                )
+              }
+
+              {/* LIVE STATUS */}
+              <div
+                className={`live-indicator ${isLiveActive
+                    ? 'active'
+                    : trackingEnabled
+                      ? 'waiting'
+                      : ''
+                  }`}
+              >
+
+                <div className="live-dot"></div>
+
+                <span>
+                  {displayedRouteStatus}
+                </span>
+
+              </div>
+
+            </div>
+
+            {/* ============================== */}
+            {/* AUTOCOMPLETE DROPDOWN */}
+            {/* ============================== */}
+
+            {
+              showDropdown &&
+              searchResults.length > 0 && (
+
+                <div
+                  className="autocomplete-dropdown"
+                  ref={dropdownRef}
+                >
+
+                  {
+                    searchResults.map(
+                      (
+                        item,
+                        index
+                      ) => (
+
+                        <div
+                          id={`suggestion-${index}`}
+
+                          key={`${item.lat}-${item.lng}`}
+
+                          className={`autocomplete-item ${selectedSuggestionIndex === index
+                              ? 'active'
+                              : ''
+                            }`}
+
+                          onMouseEnter={() =>
+                            setSelectedSuggestionIndex(index)
+                          }
+
+                          onMouseDown={(e) => {
+
+                            e.preventDefault();
+
+                            handleSelectSuggestion(item);
+
+                          }}
+                        >
+
+                          <div className="autocomplete-title">
+
+                            {item.name}
+
+                          </div>
+
+                          <div className="autocomplete-address">
+
+                            {item.fullAddress}
+
+                          </div>
+
+                        </div>
+
+                      )
+                    )
+                  }
+
+                </div>
+
+              )
+            }
+
           </div>
         </div>
 
@@ -1246,9 +1762,9 @@ const Dashboard: React.FC = () => {
           <div className="stat-card glass-effect">
             <div className="stat-icon purple">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M5 19 L19 5"/>
-                <path d="M16 21 L21 16"/>
-                <path d="M3 8 L8 3"/>
+                <path d="M5 19 L19 5" />
+                <path d="M16 21 L21 16" />
+                <path d="M3 8 L8 3" />
               </svg>
             </div>
             <div>
@@ -1261,35 +1777,35 @@ const Dashboard: React.FC = () => {
         <div className="action-buttons-top">
           <button onClick={() => setIs3D(!is3D)} className="action-btn glass-effect" title="Toggle 3D View">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-              <polyline points="3.29 7 12 12 20.71 7"/>
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.29 7 12 12 20.71 7" />
             </svg>
           </button>
           <button onClick={() => setShowRouteTrack((value) => !value)} className={`action-btn glass-effect ${showRouteTrack ? 'active' : ''}`} title="Route Track">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="6" cy="5" r="2"/>
-              <circle cx="18" cy="19" r="2"/>
-              <path d="M6 7v3a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v-1"/>
+              <circle cx="6" cy="5" r="2" />
+              <circle cx="18" cy="19" r="2" />
+              <path d="M6 7v3a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v-1" />
             </svg>
           </button>
           <button onClick={() => setShowRightPanel(!showRightPanel)} className="action-btn glass-effect" title="Route Sessions">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <line x1="9" y1="3" x2="9" y2="21"/>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
             </svg>
           </button>
-          <button onClick={() => navigate('/history')} className="action-btn glass-effect" title="Route History">
+          {/* <button onClick={() => navigate('/history')} className="action-btn glass-effect" title="Route History">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 12a9 9 0 1 0 3-6.7"/>
-              <path d="M3 3v6h6"/>
-              <path d="M12 7v5l3 2"/>
+              <path d="M3 12a9 9 0 1 0 3-6.7" />
+              <path d="M3 3v6h6" />
+              <path d="M12 7v5l3 2" />
             </svg>
-          </button>
+          </button> */}
           <button onClick={handleLogout} className="action-btn glass-effect danger" title="Logout">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
           </button>
         </div>
@@ -1299,34 +1815,34 @@ const Dashboard: React.FC = () => {
       <div className="left-controls">
         <button onClick={() => mapRef.current?.zoomIn()} className="control-btn glass-effect" title="Zoom In">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
         <button onClick={() => mapRef.current?.zoomOut()} className="control-btn glass-effect" title="Zoom Out">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="5" y1="12" x2="19" y2="12"/>
+            <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
         <div className="divider"></div>
         <button onClick={useCurrentLocationAsStart} className="control-btn glass-effect glow-blue" title="My Location">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19 12a7 7 0 1 0-14 0"/>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19 12a7 7 0 1 0-14 0" />
           </svg>
         </button>
         <button onClick={() => setShowLayerPanel(!showLayerPanel)} className="control-btn glass-effect" title="Map Layers">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-            <polyline points="2 17 12 22 22 17"/>
-            <polyline points="2 12 12 17 22 12"/>
+            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+            <polyline points="2 17 12 22 22 17" />
+            <polyline points="2 12 12 17 22 12" />
           </svg>
         </button>
         <button onClick={() => setShowRouteTrack((value) => !value)} className="control-btn glass-effect" title="Route Track">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="6" cy="5" r="2"/>
-            <circle cx="18" cy="19" r="2"/>
-            <path d="M6 7v3a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v-1"/>
+            <circle cx="6" cy="5" r="2" />
+            <circle cx="18" cy="19" r="2" />
+            <path d="M6 7v3a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v-1" />
           </svg>
         </button>
       </div>
@@ -1343,7 +1859,7 @@ const Dashboard: React.FC = () => {
             <div className="route-track-header">
               <button type="button" className="route-track-back" onClick={() => setShowRouteTrack(false)} title="Hide route track">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 18 9 12 15 6"/>
+                  <polyline points="15 18 9 12 15 6" />
                 </svg>
               </button>
               <div>
@@ -1388,7 +1904,7 @@ const Dashboard: React.FC = () => {
             <div className="turn-instruction">
               <div className="turn-icon-modern">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 18 9 12 15 6"/>
+                  <polyline points="15 18 9 12 15 6" />
                 </svg>
               </div>
               <div className="turn-details">
@@ -1401,7 +1917,7 @@ const Dashboard: React.FC = () => {
               <div className="next-turn">
                 <div className="next-turn-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="9 18 15 12 9 6"/>
+                    <polyline points="9 18 15 12 9 6" />
                   </svg>
                 </div>
                 <span className="next-turn-dist">{nextTurn.distance}</span>
@@ -1434,8 +1950,8 @@ const Dashboard: React.FC = () => {
                 className="nav-btn-secondary"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 16, height: 16 }}>
-                  <path d="M5 12h14"/>
-                  <path d="M13 6l6 6-6 6"/>
+                  <path d="M5 12h14" />
+                  <path d="M13 6l6 6-6 6" />
                 </svg>
                 {isResolvingRoute || isPlanningRoute ? 'Planning' : 'Plan'}
               </button>
@@ -1449,15 +1965,15 @@ const Dashboard: React.FC = () => {
                 }
               }} className={`nav-btn-secondary ${trackingEnabled ? 'active' : ''}`}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 16, height: 16 }}>
-                  <circle cx="12" cy="12" r="10"/>
-                  <polygon points="10 8 16 12 10 16 10 8"/>
+                  <circle cx="12" cy="12" r="10" />
+                  <polygon points="10 8 16 12 10 16 10 8" />
                 </svg>
                 {trackingEnabled ? 'Tracking' : 'Start'}
               </button>
               <button onClick={() => updateSessionStatus('cancel')} className="nav-btn-danger" disabled={!activeSession}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 16, height: 16 }}>
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
@@ -1476,8 +1992,8 @@ const Dashboard: React.FC = () => {
               </div>
               <button onClick={() => setShowRightPanel(false)} className="close-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 18, height: 18 }}>
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
@@ -1552,15 +2068,15 @@ const Dashboard: React.FC = () => {
                         <div className="session-status">
                           <Tag value={session.status || 'UNKNOWN'} severity={
                             session.status === 'ACTIVE' ? 'success' :
-                            session.status === 'PAUSED' ? 'warning' :
-                            session.status === 'CANCELLED' ? 'danger' : 'info'
+                              session.status === 'PAUSED' ? 'warning' :
+                                session.status === 'CANCELLED' ? 'danger' : 'info'
                           } />
                         </div>
                       </div>
                       <div className="session-meta">
                         <span>{session.remainingDistance ? `${(session.remainingDistance / 1000).toFixed(1)} km` : '-'}</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
-                          <polyline points="9 18 15 12 9 6"/>
+                          <polyline points="9 18 15 12 9 6" />
                         </svg>
                       </div>
                     </div>
@@ -1589,8 +2105,8 @@ const Dashboard: React.FC = () => {
               <h4>Map Style</h4>
               <button onClick={() => setShowLayerPanel(false)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 14, height: 14 }}>
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
@@ -1693,8 +2209,8 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="dialog-footer">
           <Button label="Later" className="btn-secondary" onClick={() => setShowStartTrackingDialog(false)} />
-          <Button label="Start Tracking" className="btn-primary" onClick={async () => { 
-            setShowStartTrackingDialog(false); 
+          <Button label="Start Tracking" className="btn-primary" onClick={async () => {
+            setShowStartTrackingDialog(false);
             await startTracking();
           }} />
         </div>
