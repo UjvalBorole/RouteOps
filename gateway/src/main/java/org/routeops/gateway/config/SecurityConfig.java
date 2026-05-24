@@ -32,16 +32,16 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/",
                                 "/api/auth/**",
-                                "/api/navigation/**",
+//                                "/api/navigation/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/tracking/**",
                                 "/actuator/**"
                         ).permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
-                        .requestMatchers("/api/route/**", "/api/alerts/**", "/api/location/**").hasRole("USER")
-                        .requestMatchers(HttpMethod.GET, "/api/vehicles").authenticated()
-                        .requestMatchers("/api/vehicles/**").hasRole("ADMIN")
+                        .requestMatchers("/api/route/**", "/api/alerts/**").hasRole("USER")
+                        .requestMatchers(HttpMethod.GET).authenticated()
+//                        .requestMatchers("/api/vehicles/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess ->
