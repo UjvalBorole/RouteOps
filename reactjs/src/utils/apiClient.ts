@@ -3,24 +3,32 @@ import tokenService from './tokenService';
 
 // Determine the API base URL based on environment
 const getBaseURL = () => {
+  // 1. PRIORITY: Environment production URL
+const API_URL = import.meta.env.VITE_API_URL;
+
+if (API_URL) {
+  return API_URL;
+}
+
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
     const port = window.location.port;
-    
-    // In Docker containers (non-localhost hostname)
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      // Use relative path - nginx will proxy /api/ to gateway service
-      return '';
+
+    // 2. NGINX / reverse proxy mode (Netlify / Docker / same domain)
+    // In this case we use relative /api and let nginx handle routing
+    if (
+      hostname !== 'localhost' &&
+      hostname !== '127.0.0.1'
+    ) {
+      return ''; // nginx will proxy /api → gateway
     }
-    
-    // Local development or accessing via localhost
-    // Build the full URL based on current window location
-    const baseUrl = `${protocol}//${hostname}${port ? ':' + port : ''}`;
-    return baseUrl;
+
+    // 3. Local development fallback
+    return `${protocol}//${hostname}${port ? ':' + port : ''}`;
   }
-  
-  // Fallback for server-side rendering
+
+  // SSR fallback
   return 'http://localhost:8081';
 };
 

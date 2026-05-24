@@ -4,23 +4,37 @@ const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
 const getBaseURL = () => {
-  // Determine the API base URL based on environment
+  // 1. PRIORITY: Environment production URL
+ const API_URL = import.meta.env.VITE_API_URL;
+  
+if (API_URL) {
+
+  return API_URL;
+}
+
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    
-    // If accessing from localhost, use localhost:8081
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8081';
+    const protocol = window.location.protocol;
+    const port = window.location.port;
+
+    // 2. NGINX / reverse proxy mode (Netlify / Docker / same domain)
+    // In this case we use relative /api and let nginx handle routing
+    if (
+      hostname !== 'localhost' &&
+      hostname !== '127.0.0.1'
+    ) {
+      return ''; // nginx will proxy /api → gateway
     }
-    
-    // If accessing from a different hostname (Docker), use relative path
-    if (hostname !== 'localhost') {
-      return ''; // Use relative URLs
-    }
+
+    // 3. Local development fallback
+    return `${protocol}//${hostname}${port ? ':' + port : ''}`;
   }
-  
+
+  // SSR fallback
   return 'http://localhost:8081';
 };
+
+
 
 export const tokenService = {
   // Save both tokens
