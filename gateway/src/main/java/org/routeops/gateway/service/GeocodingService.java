@@ -169,40 +169,47 @@ public class GeocodingService {
         log.warn("NOMINATIM FAILED");
 
         // 3. GEOAPIFY
-        Optional<GeocodingResponse> geoapify =
-                searchGeoapify(query);
+        if(GEOAPIFY_KEY.equals("dummy")) {
+            Optional<GeocodingResponse> geoapify =
+                    searchGeoapify(query);
 
-        if (geoapify.isPresent()) {
+            if (geoapify.isPresent()) {
 
-            log.info("SUCCESS FROM GEOAPIFY");
+                log.info("SUCCESS FROM GEOAPIFY");
 
-            return geoapify;
+                return geoapify;
+            }
         }
 
         log.warn("GEOAPIFY FAILED");
 
-        // 4. OPENROUTESERVICE
-        Optional<GeocodingResponse> ors =
-                searchOpenRouteService(query);
 
-        if (ors.isPresent()) {
+        if(OPEN_ROUTE_SERVICE_KEY.equals("dummy")) {
+            // 4. OPENROUTESERVICE
+            Optional<GeocodingResponse> ors =
+                    searchOpenRouteService(query);
 
-            log.info("SUCCESS FROM OPENROUTESERVICE");
+            if (ors.isPresent()) {
 
-            return ors;
+                log.info("SUCCESS FROM OPENROUTESERVICE");
+
+                return ors;
+            }
         }
 
         log.warn("OPENROUTESERVICE FAILED");
 
         // 5. MAPBOX
-        Optional<GeocodingResponse> mapbox =
-                searchMapbox(query);
+        if(MAPBOX_KEY.equals("dummy")) {
+            Optional<GeocodingResponse> mapbox =
+                    searchMapbox(query);
 
-        if (mapbox.isPresent()) {
+            if (mapbox.isPresent()) {
 
-            log.info("SUCCESS FROM MAPBOX");
+                log.info("SUCCESS FROM MAPBOX");
 
-            return mapbox;
+                return mapbox;
+            }
         }
 
         log.warn("MAPBOX FAILED");
