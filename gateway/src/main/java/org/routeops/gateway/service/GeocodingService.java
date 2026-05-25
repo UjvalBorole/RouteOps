@@ -247,29 +247,32 @@ public class GeocodingService {
         log.warn("NOMINATIM REVERSE FAILED");
 
         // 2. GEOAPIFY
-        Optional<GeocodingResponse> geoapify =
-                reverseGeoapify(lat, lng);
+        if(GEOAPIFY_KEY.equals("dummy")) {
+            Optional<GeocodingResponse> geoapify =
+                    reverseGeoapify(lat, lng);
 
-        if (geoapify.isPresent()) {
+            if (geoapify.isPresent()) {
 
-            log.info("SUCCESS FROM GEOAPIFY");
+                log.info("SUCCESS FROM GEOAPIFY");
 
-            return geoapify;
+                return geoapify;
+            }
         }
 
         log.warn("GEOAPIFY REVERSE FAILED");
 
         // 3. MAPBOX
-        Optional<GeocodingResponse> mapbox =
-                reverseMapbox(lat, lng);
+        if(MAPBOX_KEY.equals("dummy")) {
+            Optional<GeocodingResponse> mapbox =
+                    reverseMapbox(lat, lng);
 
-        if (mapbox.isPresent()) {
+            if (mapbox.isPresent()) {
 
-            log.info("SUCCESS FROM MAPBOX");
+                log.info("SUCCESS FROM MAPBOX");
 
-            return mapbox;
+                return mapbox;
+            }
         }
-
         log.warn("MAPBOX REVERSE FAILED");
 
         log.error("ALL REVERSE GEOCODING FAILED");
