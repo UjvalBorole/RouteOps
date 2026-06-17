@@ -11,4 +11,4 @@ if [ -f /run/secrets/jwt_secret ]; then
 fi
 
 # Start the application
-exec java -jar app.jar
+exec java ${JAVA_OPTS} -jar app.jar
