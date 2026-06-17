@@ -3,7 +3,7 @@ FROM maven:3.9-amazoncorretto-17 AS build
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
-
+ENV JAVA_OPTS="-Xms128m -Xmx384m"
 RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime
@@ -13,7 +13,7 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
 COPY entrypoint.sh .
-
+ENV JAVA_OPTS="-Xms128m -Xmx384m"
 # Package used to convert entrypoint.sh to Unix format and set execute permissions
 RUN apk add --no-cache dos2unix && \
     dos2unix entrypoint.sh && \
